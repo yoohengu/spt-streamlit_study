@@ -89,34 +89,38 @@ def fetch_seoul_weather() -> dict:
     return response.json()
 
 
-st.title("🧥 POLYTERU 매출 대시보드")
-st.caption("주문 데이터와 상품 데이터 엑셀 파일을 업로드하면 자동으로 병합되어 분석 대시보드를 보여줍니다")
+try:
+    weather = fetch_seoul_weather()
+    current_temp = weather["current_weather"]["temperature"]
+    hourly_df = pd.DataFrame(
+        {
+            "시간": pd.to_datetime(weather["hourly"]["time"]),
+            "기온": weather["hourly"]["temperature_2m"],
+        }
+    )
 
-with st.container(border=True):
-    st.subheader("☀️ 서울 날씨")
-    try:
-        weather = fetch_seoul_weather()
-        current_temp = weather["current_weather"]["temperature"]
-        hourly_df = pd.DataFrame(
-            {
-                "시간": pd.to_datetime(weather["hourly"]["time"]),
-                "기온": weather["hourly"]["temperature_2m"],
-            }
-        )
-
-        st.metric("현재 기온", f"{current_temp:.1f} °C")
+    weather_metric_col, weather_chart_col = st.columns([1, 4])
+    with weather_metric_col:
+        st.metric("☀️ 서울 현재 기온", f"{current_temp:.1f} °C")
+    with weather_chart_col:
         fig = px.line(hourly_df, x="시간", y="기온", markers=True)
-        fig.update_traces(line_color="#0984E3", line_width=3)
+        fig.update_traces(line_color="#0984E3", line_width=2, marker={"size": 4})
         fig.update_layout(
+            height=120,
             plot_bgcolor="rgba(0,0,0,0)",
             paper_bgcolor="rgba(0,0,0,0)",
-            margin=dict(t=10, b=10, l=10, r=10),
-            yaxis_title="기온 (°C)",
-            xaxis_title="",
+            margin=dict(t=5, b=5, l=5, r=5),
+            yaxis_title=None,
+            xaxis_title=None,
         )
         st.plotly_chart(fig, use_container_width=True)
-    except requests.RequestException as e:
-        st.warning(f"날씨 정보를 불러오지 못했습니다: {e}")
+except requests.RequestException as e:
+    st.warning(f"날씨 정보를 불러오지 못했습니다: {e}")
+
+st.divider()
+
+st.title("🧥 POLYTERU 매출 대시보드")
+st.caption("주문 데이터와 상품 데이터 엑셀 파일을 업로드하면 자동으로 병합되어 분석 대시보드를 보여줍니다")
 
 st.sidebar.header("📁 데이터 업로드")
 uploaded_files = st.sidebar.file_uploader(
