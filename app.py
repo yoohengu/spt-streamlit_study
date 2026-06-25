@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pandas as pd
 import plotly.express as px
+import requests
 import streamlit as st
 
 st.set_page_config(page_title="POLYTERU 매출 대시보드", page_icon="🧥", layout="wide")
@@ -9,6 +10,7 @@ st.set_page_config(page_title="POLYTERU 매출 대시보드", page_icon="🧥", 
 DUMMY_DIR = Path(__file__).parent / "더미데이터"
 ORDER_KEY_COLUMNS = {"order_id", "product_id", "total_price"}
 PRODUCT_KEY_COLUMNS = {"product_id", "product_name"}
+SEOUL_LATITUDE, SEOUL_LONGITUDE = 37.5665, 126.9780
 
 st.markdown(
     """
@@ -69,8 +71,52 @@ def won(value: float) -> str:
     return f"{value:,.0f} 원"
 
 
+@st.cache_data(ttl=600)
+def fetch_seoul_weather() -> dict:
+    response = requests.get(
+        "https://api.open-meteo.com/v1/forecast",
+        params={
+            "latitude": SEOUL_LATITUDE,
+            "longitude": SEOUL_LONGITUDE,
+            "current_weather": True,
+            "hourly": "temperature_2m",
+            "timezone": "Asia/Seoul",
+            "forecast_days": 1,
+        },
+        timeout=10,
+    )
+    response.raise_for_status()
+    return response.json()
+
+
 st.title("🧥 POLYTERU 매출 대시보드")
 st.caption("주문 데이터와 상품 데이터 엑셀 파일을 업로드하면 자동으로 병합되어 분석 대시보드를 보여줍니다")
+
+with st.container(border=True):
+    st.subheader("☀️ 서울 날씨")
+    try:
+        weather = fetch_seoul_weather()
+        current_temp = weather["current_weather"]["temperature"]
+        hourly_df = pd.DataFrame(
+            {
+                "시간": pd.to_datetime(weather["hourly"]["time"]),
+                "기온": weather["hourly"]["temperature_2m"],
+            }
+        )
+
+        st.metric("현재 기온", f"{current_temp:.1f} °C")
+        fig = px.line(hourly_df, x="시간", y="기온", markers=True)
+        fig.update_traces(line_color="#0984E3", line_width=3)
+        fig.update_layout(
+            plot_bgcolor="rgba(0,0,0,0)",
+            paper_bgcolor="rgba(0,0,0,0)",
+            margin=dict(t=10, b=10, l=10, r=10),
+            yaxis_title="기온 (°C)",
+            xaxis_title="",
+        )
+        st.plotly_chart(fig, use_container_width=True)
+    except requests.RequestException as e:
+        st.warning(f"날씨 정보를 불러오지 못했습니다: {e}")
 
 st.sidebar.header("📁 데이터 업로드")
 uploaded_files = st.sidebar.file_uploader(
